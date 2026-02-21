@@ -1,28 +1,28 @@
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # Ye har jagah se access allow karega
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from supabase import create_client, Client
 import json, os, sys
 from datetime import datetime
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 
-# AI Engine
+# AI Engine (Make sure vision_engine.py is in the same folder)
 from vision_engine import get_face_encoding_from_base64, match_face
 
-app = FastAPI(title="GCT Multan Attendance")
+# 1. Initialize App (Only Once!)
+app = FastAPI(title="GCT Multan Attendance System")
 
-# --- PATH LOGIC (EXE Compatible) ---
+# 2. Add CORS Middleware (Must be defined right after app)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- PATH LOGIC (EXE and Cloud Compatible) ---
 def get_resource_path(relative_path):
     if getattr(sys, 'frozen', False):
         # Jab EXE chal rahi ho
@@ -31,7 +31,7 @@ def get_resource_path(relative_path):
 
 STATIC_DIR = get_resource_path("static")
 
-# Supabase Keys (Wahi jo tumne pehle di thin)
+# Supabase Keys
 SUPABASE_URL = "https://gazjbujwpbshxpbsagbn.supabase.co"
 SUPABASE_KEY = "sb_publishable_JFaFDHaVymZYEm58jXNzxw_AgUzFMQY"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -39,7 +39,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Static files mount
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# Models
+# Data Models
 class StudentRegistration(BaseModel):
     name: str
     roll_no: str
@@ -48,7 +48,7 @@ class StudentRegistration(BaseModel):
 class AttendanceRequest(BaseModel):
     image_base64: str
 
-# --- 1. HOME SCREEN (FIXED PATH) ---
+# --- 1. HOME SCREEN ---
 @app.get("/")
 def serve_ui():
     index_file = os.path.join(STATIC_DIR, "index.html")
@@ -56,7 +56,7 @@ def serve_ui():
         return FileResponse(index_file)
     return {"error": f"Path not found: {index_file}"}
 
-# --- 2. API ENDPOINTS (As it is) ---
+# --- 2. API ENDPOINTS ---
 @app.post("/api/register")
 def register_student(student: StudentRegistration):
     encoding, message = get_face_encoding_from_base64(student.image_base64)
@@ -72,11 +72,13 @@ def register_student(student: StudentRegistration):
 @app.post("/api/recognize")
 def mark_attendance(req: AttendanceRequest):
     unknown_encoding, message = get_face_encoding_from_base64(req.image_base64)
-    if unknown_encoding is None: raise HTTPException(status_code=400, detail=message)
+    if unknown_encoding is None: 
+        raise HTTPException(status_code=400, detail=message)
     
     response = supabase.table("students").select("*").execute()
     students = response.data
-    if not students: raise HTTPException(status_code=404, detail="Vault empty")
+    if not students: 
+        raise HTTPException(status_code=404, detail="Vault empty")
     
     known_encodings = [json.loads(s['face_encoding']) for s in students]
     match_idx = match_face(unknown_encoding, known_encodings)
