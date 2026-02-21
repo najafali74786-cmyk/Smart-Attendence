@@ -82,11 +82,11 @@
     </div>
 
     <script>
-    // 1. Supabase Initialization (Sirf EK dafa!)
+    // 1. Supabase Initialization (Variable name changed to avoid conflict)
     const SB_URL = "https://gazjbujwpbshxpbsagbn.supabase.co";
     const SB_KEY = "sb_publishable_JFaFDHaVymZYEm58jXNzxw_AgUzFMQY";
     
-    // Yahan check karein ke kya supabase pehle se globally available toh nahi
+    // Global variable 'supabase' is provided by the CDN script
     const supabaseClient = supabase.createClient(SB_URL, SB_KEY); 
 
     let liveData = [];
@@ -96,8 +96,6 @@
         const u = document.getElementById('userInp').value;
         const p = document.getElementById('passInp').value;
         
-        console.log("Attempting login for:", u);
-
         try {
             const { data, error } = await supabaseClient
                 .from('admin_users')
@@ -131,9 +129,13 @@
         
         liveData = data;
         document.getElementById('statTotal').innerText = data.length;
-        
+        renderTable(data);
+    }
+
+    // 4. Render Table Function
+    function renderTable(dataList) {
         const body = document.getElementById('historyTable');
-        body.innerHTML = data.map(r => `
+        body.innerHTML = dataList.map(r => `
             <tr class="hover:bg-blue-500/5 transition-all">
                 <td class="p-6">
                     <div class="flex flex-col">
@@ -150,7 +152,45 @@
         `).join('');
     }
 
-    // Baaqi functions (Export CSV, Add Entry) yahan neechay as it is rahen ge...
+    // 5. CSV Export Engine
+    function exportToCSV() {
+        if (liveData.length === 0) return alert("Registry is empty.");
+
+        let csv = "NAME,ROLL NUMBER,DATE,TIME,STATUS\n";
+        liveData.forEach(r => {
+            csv += `${r.students?.name || 'N/A'},${r.roll_no},${r.date},${r.time},${r.status}\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `NA_Corp_Report_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    // 6. Management Controls (Dynamic Add)
+    async function addEntry(type) {
+        const name = prompt(`Enter new ${type} name (e.g. Mechanical/Civil):`);
+        if (name) {
+            const table = type === 'department' ? 'departments' : 'classes';
+            const { error } = await supabaseClient.from(table).insert({ name });
+            if (error) alert("Error adding entry: " + error.message);
+            else alert(`${type.toUpperCase()} added successfully!`);
+        }
+    }
+
+    // 7. Live Search Filter
+    function filterTable() {
+        const query = document.getElementById('searchInp').value.toLowerCase();
+        const filtered = liveData.filter(r => r.roll_no.toLowerCase().includes(query));
+        renderTable(filtered);
+    }
+
+    // Auto-refresh every 30 seconds
+    setInterval(initDashboard, 30000);
 </script>
 </body>
 </html>
