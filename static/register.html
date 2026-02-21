@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NA Corp - Dynamic Registration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+</head>
+<body class="bg-[#020617] text-slate-300 p-6 font-sans">
+    <div class="max-w-2xl mx-auto bg-slate-900/50 backdrop-blur-xl p-10 rounded-[2.5rem] border border-slate-800 shadow-2xl">
+        <h1 class="text-3xl font-black text-center mb-8 italic text-white">MEMBER <span class="text-blue-500">ENROLLMENT</span></h1>
+        
+        <form id="regForm" class="space-y-6">
+            <input type="text" id="name" placeholder="Full Name" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl outline-none focus:border-blue-500 text-white" required>
+            <input type="text" id="roll_no" placeholder="Roll Number (e.g. ME-01)" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl outline-none focus:border-blue-500 text-white" required>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <select id="deptSelect" class="bg-slate-800 border border-slate-700 p-4 rounded-2xl outline-none focus:border-blue-500 text-slate-400" required>
+                    <option value="">Select Department</option>
+                </select>
+                <select id="classSelect" class="bg-slate-800 border border-slate-700 p-4 rounded-2xl outline-none focus:border-blue-500 text-slate-400" required>
+                    <option value="">Select Class</option>
+                </select>
+            </div>
+
+            <div class="bg-slate-950 p-6 rounded-3xl border-2 border-dashed border-slate-800 text-center">
+                <video id="regVideo" autoplay class="w-48 h-48 mx-auto rounded-full object-cover mb-4 border-4 border-blue-500/20 shadow-2xl"></video>
+                <p class="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2">Face Identity Scan</p>
+                <button type="button" onclick="captureFace()" id="captureBtn" class="text-xs font-bold text-slate-400 hover:text-white transition-colors">CLICK TO CAPTURE</button>
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-black text-xl text-white shadow-lg shadow-blue-900/20 transition-all active:scale-95">FINALIZE REGISTRATION</button>
+        </form>
+    </div>
+
+    <script>
+        const SB_URL = "https://gazjbujwpbshxpbsagbn.supabase.co";
+        const SB_KEY = "sb_publishable_JFaFDHaVymZYEm58jXNzxw_AgUzFMQY";
+        const supabase = supabase.createClient(SB_URL, SB_KEY);
+
+        let capturedImage = null;
+
+        // 1. Load Dynamic Data from Admin Portal
+        async function loadDropdowns() {
+            const { data: depts } = await supabase.from('departments').select('*');
+            const { data: classes } = await supabase.from('classes').select('*');
+
+            const dSelect = document.getElementById('deptSelect');
+            depts?.forEach(d => dSelect.innerHTML += `<option value="${d.id}">${d.name}</option>`);
+
+            const cSelect = document.getElementById('classSelect');
+            classes?.forEach(c => cSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`);
+        }
+
+        // 2. Camera Setup
+        async function setupCamera() {
+            const video = document.getElementById('regVideo');
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+        }
+
+        function captureFace() {
+            const video = document.getElementById('regVideo');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            capturedImage = canvas.toDataURL('image/jpeg');
+            document.getElementById('captureBtn').innerText = "✅ FACE CAPTURED";
+        }
+
+        // 3. Submit Registration
+        document.getElementById('regForm').onsubmit = async (e) => {
+            e.preventDefault();
+            if(!capturedImage) return alert("Please capture face first!");
+
+            const studentData = {
+                name: document.getElementById('name').value,
+                roll_no: document.getElementById('roll_no').value,
+                image_base64: capturedImage
+            };
+
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(studentData)
+            });
+
+            const res = await response.json();
+            alert(res.message);
+            if(response.ok) window.location.href = "/static/index.html";
+        };
+
+        loadDropdowns();
+        setupCamera();
+    </script>
+</body>
+</html>
